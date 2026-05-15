@@ -1,0 +1,862 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Conciliador de Proveedores CFDI</title>
+  <style>
+    :root{
+      --bg:#0b1020; --panel:#11182e; --panel2:#0f172b; --text:#e8ecff; --muted:#a9b2d6;
+      --brand:#7c5cff; --brand2:#2fe6ff; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444;
+      --stroke:rgba(255,255,255,.10); --stroke2:rgba(255,255,255,.16); --shadow:0 16px 48px rgba(0,0,0,.35);
+      --radius:16px; --radius2:22px; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+      --sans:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:var(--sans);color:var(--text);background:
+      radial-gradient(1200px 600px at 20% -10%, rgba(124,92,255,.35), transparent 60%),
+      radial-gradient(900px 500px at 120% 20%, rgba(47,230,255,.25), transparent 60%),
+      linear-gradient(180deg,#070a14,var(--bg));min-height:100vh}
+    .app{display:grid;grid-template-columns:390px 1fr;gap:18px;padding:18px;max-width:1580px;margin:0 auto}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02));border:1px solid var(--stroke);border-radius:var(--radius2);box-shadow:var(--shadow);overflow:hidden}
+    .sidebar{position:sticky;top:18px;height:calc(100vh - 36px);display:flex;flex-direction:column}
+    .cardHeader{padding:16px;border-bottom:1px solid var(--stroke);background:linear-gradient(180deg,rgba(124,92,255,.12),transparent 70%)}
+    .cardHeader h1{margin:0;font-size:17px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .pill,.badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;border:1px solid var(--stroke2);font-size:12px;background:rgba(255,255,255,.04);color:var(--muted)}
+    .badge.ok{border-color:rgba(34,197,94,.35);color:#c5ffd8;background:rgba(34,197,94,.08)}
+    .badge.warn{border-color:rgba(245,158,11,.35);color:#ffe0a6;background:rgba(245,158,11,.08)}
+    .badge.bad{border-color:rgba(239,68,68,.35);color:#ffc4c4;background:rgba(239,68,68,.08)}
+    .badge.info{border-color:rgba(47,230,255,.35);color:#d6f7ff;background:rgba(47,230,255,.08)}
+    .cardBody{padding:14px 16px;overflow:auto}
+    label{display:block;font-size:12px;color:var(--muted);margin:10px 0 6px}
+    input[type=text], input[type=number], select, textarea{width:100%;padding:10px 12px;border-radius:12px;border:1px solid var(--stroke2);background:rgba(5,8,18,.55);color:var(--text);outline:none}
+    textarea{min-height:110px;resize:vertical;font-family:var(--mono);font-size:12px}
+    .row{display:flex;gap:10px}.row>*{flex:1;min-width:0}
+    .btnRow{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.btnRow button{flex:1 1 0}
+    button{padding:10px 12px;border-radius:14px;border:1px solid var(--stroke2);background:linear-gradient(180deg,rgba(124,92,255,.22),rgba(124,92,255,.10));color:var(--text);cursor:pointer}
+    button.secondary{background:rgba(255,255,255,.04)} button.ghost{background:rgba(255,255,255,.02);color:var(--muted)}
+    .drop{margin-top:12px;border-radius:18px;border:1px dashed rgba(255,255,255,.22);background:rgba(255,255,255,.02);padding:14px;text-align:center;color:var(--muted)}
+    .progressWrap{margin-top:12px;border:1px solid var(--stroke2);border-radius:14px;padding:10px 12px;background:rgba(0,0,0,.18)}
+    .bar{height:10px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;border:1px solid rgba(255,255,255,.10)}
+    .bar>div{height:100%;width:0;background:linear-gradient(90deg,var(--brand),var(--brand2));transition:width .08s linear}
+    .tiny{font-size:12px;color:var(--muted)} .mono{font-family:var(--mono)} .muted{color:var(--muted)}
+    .main{display:flex;flex-direction:column;gap:18px;min-width:0}
+    .topGrid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+    .stat{padding:14px;border-radius:var(--radius);border:1px solid var(--stroke);background:rgba(255,255,255,.03)}
+    .stat .k{font-size:12px;color:var(--muted)} .stat .v{font-size:22px;margin-top:6px;font-weight:700}.stat .s{font-size:12px;margin-top:6px;color:var(--muted)}
+    .tabs{display:flex;gap:10px;padding:10px 12px;border-bottom:1px solid var(--stroke);background:rgba(255,255,255,.02);flex-wrap:wrap}
+    .tab{padding:8px 12px;border-radius:999px;border:1px solid var(--stroke2);background:rgba(255,255,255,.03);color:var(--muted);cursor:pointer;font-size:13px}
+    .tab.active{color:var(--text);border-color:rgba(124,92,255,.45);background:rgba(124,92,255,.14)}
+    .filters{display:flex;gap:10px;padding:12px;border-bottom:1px solid var(--stroke);flex-wrap:wrap;align-items:center}
+    .filters select,.filters input{max-width:250px}
+    .tableWrap{overflow:auto}
+    table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+    thead th{position:sticky;top:0;z-index:2;text-align:left;padding:10px 12px;background:rgba(10,14,32,.96);border-bottom:1px solid var(--stroke);color:var(--muted);font-weight:600;white-space:nowrap;cursor:pointer}
+    tbody td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.06);white-space:nowrap;vertical-align:top}
+    tbody tr:hover{background:rgba(255,255,255,.03)}
+    .footerBar{padding:10px 12px;border-top:1px solid var(--stroke);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;background:rgba(255,255,255,.02);align-items:center;color:var(--muted);font-size:12px}
+    .rightActions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.rightActions button{width:auto;padding:8px 12px}.rightActions select{width:auto;padding:8px 10px}
+    .drawer{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:flex-end;justify-content:center;padding:16px;z-index:60}.drawer.show{display:flex}
+    .drawerCard{width:min(1180px,100%);border-radius:22px;border:1px solid rgba(255,255,255,.14);background:linear-gradient(180deg,rgba(16,26,58,.98),rgba(10,14,32,.98));box-shadow:0 28px 80px rgba(0,0,0,.55);overflow:hidden}
+    .drawerHead{padding:14px 16px;display:flex;justify-content:space-between;gap:10px;align-items:center;border-bottom:1px solid rgba(255,255,255,.08);flex-wrap:wrap}
+    .drawerBody{padding:14px 16px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .kv{border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:12px;background:rgba(0,0,0,.14)}
+    .line{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dashed rgba(255,255,255,.08)} .line:last-child{border-bottom:none}
+    .line .k{color:var(--muted);font-size:12px}.line .v{font-family:var(--mono);font-size:12px;text-align:right;word-break:break-all}
+    .drawerWide{grid-column:1 / -1}
+    @media(max-width:1100px){.app{grid-template-columns:1fr}.sidebar{position:relative;height:auto}.topGrid{grid-template-columns:repeat(2,1fr)}.drawerBody{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="card sidebar">
+    <div class="cardHeader">
+      <h1>Conciliador de Proveedores CFDI <span class="pill">Versión 4</span><span class="pill">Conciliación anual y mensual</span></h1>
+      <div class="tiny" style="margin-top:8px">Herramienta de conciliación de CFDI recibidos por proveedor, con análisis anual y mensual, control de anticipos, complementos de pago, homologación inteligente de proveedores y exportación a Excel.</div>
+    </div>
+    <div class="cardBody">
+      <label>RFC empresa (receptor para CFDI recibidos)</label>
+      <input id="cfgRFC" type="text" placeholder="ABCD010101ABC" />
+      <div class="row">
+        <div>
+          <label>Año objetivo</label>
+          <select id="cfgYear"><option value="">Todos</option></select>
+        </div>
+        <div>
+          <label>Identificación del RFC de la empresa</label>
+          <select id="cfgRFCMode"><option value="manual">Captura manual</option><option value="auto">Detección automática</option></select>
+        </div>
+      </div>
+      <label>Usos de CFDI considerados deducibles</label>
+      <input id="cfgUsos" type="text" value="G03,I01,I02,I03,I04,I05,I06,I07,I08" />
+      <div class="btnRow">
+        <button id="btnPickFiles">Seleccionar archivos XML</button>
+        <button id="btnPickFolder" class="secondary">Seleccionar carpeta de XML</button>
+        <button id="btnSuggest" class="secondary">Detectar RFC</button>
+      </div>
+      <div class="btnRow" style="margin-top:8px">
+        <button id="btnApplyManual" class="secondary">Aplicar conciliación manual</button>
+        <button id="btnSampleManual" class="ghost">Cargar ejemplo</button>
+        <button id="btnReset" class="ghost">Limpiar información</button>
+      </div>
+      <input id="fileInput" type="file" accept=".xml" multiple style="display:none" />
+      <input id="folderInput" type="file" accept=".xml" multiple webkitdirectory directory style="display:none" />
+      <div id="dropZone" class="drop"><div><strong>Arrastra y suelta</strong> XML aquí</div><div class="tiny" style="margin-top:6px">Se consideran CFDI recibidos del ejercicio seleccionado.</div></div>
+      <div class="progressWrap">
+        <div class="tiny" style="display:flex;justify-content:space-between;gap:10px"><span id="progLabel">Listo.</span><span id="progCounts" class="mono">0/0</span></div>
+        <div class="bar" style="margin-top:10px"><div id="progBar"></div></div>
+        <div class="tiny" style="margin-top:10px">Insertados: <span id="cIns" class="mono">0</span> · Duplicados: <span id="cDup" class="mono">0</span> · Errores: <span id="cErr" class="mono">0</span></div>
+      </div>
+      <label>Acumulado manual anual por proveedor (CSV, tabulado o pipe)</label>
+      <textarea id="manualInput" placeholder="RFC,NOMBRE,MONTO&#10;XAXX010101000,PROVEEDOR EJEMPLO,125000.55&#10;PROVEEDOR SIN RFC,88990.12"></textarea>
+      <div class="tiny">Formato aceptado: RFC, nombre, monto; o nombre, monto. Cuando exista RFC, la conciliación prioriza ese dato. Si no existe RFC, se aplica homologación inteligente por nombre comercial y razón social.</div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="topGrid">
+      <div class="stat"><div class="k">Proveedores</div><div id="sProv" class="v">0</div><div id="sProv2" class="s">—</div></div>
+      <div class="stat"><div class="k">CFDI recibidos</div><div id="sRec" class="v">0</div><div id="sRec2" class="s">—</div></div>
+      <div class="stat"><div class="k">Neto CFDI anual</div><div id="sNeto" class="v">$0</div><div id="sNeto2" class="s">—</div></div>
+      <div class="stat"><div class="k">Anticipos abiertos</div><div id="sAnt" class="v">0</div><div id="sAnt2" class="s">—</div></div>
+      <div class="stat"><div class="k">Alertas</div><div id="sAlerts" class="v">0</div><div id="sAlerts2" class="s">—</div></div>
+    </div>
+
+    <div class="card">
+      <div class="tabs">
+        <div class="tab active" data-tab="resumen">Resumen anual</div>
+        <div class="tab" data-tab="mensual">Resumen mensual</div>
+        <div class="tab" data-tab="detalle">Detalle CFDI</div>
+        <div class="tab" data-tab="anticipos">Anticipos</div>
+        <div class="tab" data-tab="pagos">Complementos de pago</div>
+        <div class="tab" data-tab="alertas">Alertas</div>
+      </div>
+      <div class="filters">
+        <select id="fProviderType"><option value="">Proveedor: todos</option></select>
+        <select id="fMes"><option value="">Mes: todos</option></select>
+        <select id="fClas"><option value="">Clasificación: todas</option></select>
+        <select id="fStatus"><option value="">Estatus: todos</option></select>
+        <input id="fSearch" type="text" placeholder="Buscar RFC / proveedor / UUID" />
+      </div>
+      <div class="tableWrap"><table><thead><tr id="thead"></tr></thead><tbody id="tbody"></tbody></table></div>
+      <div class="footerBar">
+        <div id="footLeft">—</div>
+        <div class="rightActions">
+          <select id="pageSize"><option value="50">50</option><option value="100" selected>100</option><option value="250">250</option></select>
+          <button id="prevPage" class="secondary">◀</button>
+          <span id="pageInfo" class="mono tiny">1/1</span>
+          <button id="nextPage" class="secondary">▶</button>
+          <button id="btnExportView" class="secondary">Exportar vista CSV</button>
+          <button id="btnExportBook" class="secondary">Exportar libro de Excel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="drawer" id="drawer">
+  <div class="drawerCard">
+    <div class="drawerHead">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><strong>Detalle CFDI</strong><span class="pill mono" id="dUUID">—</span><span class="badge info" id="dClass">—</span><span class="badge" id="dStatus">—</span></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><button id="btnCopyUUID" class="ghost">Copiar UUID</button><button id="btnCloseDrawer" class="secondary">Cerrar</button></div>
+    </div>
+    <div class="drawerBody">
+      <div class="kv" id="kvLeft"></div>
+      <div class="kv" id="kvRight"></div>
+      <div class="kv drawerWide" id="kvThird"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const DEFAULT_USOS = ['G03','I01','I02','I03','I04','I05','I06','I07','I08'];
+  const LS_KEY = 'conciliador_proveedores_v2';
+  const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+  const uiState = { activeTab:'resumen', sortKey:'proveedorNombre', sortDir:'asc', page:1, pageSize:100, lastOpenedUUID:'' };
+  const state = {
+    cfg:{ rfc:'', year:'', rfcMode:'manual', usosPermitidos:new Set(DEFAULT_USOS) },
+    cfdiByUUID:new Map(), relaciones:[], pagosDocto:[], manualByKey:new Map(), providerAliases:new Map(), import:{found:0,processed:0,ins:0,dup:0,err:0},
+    views:{ resumen:[], mensual:[], detalle:[], anticipos:[], pagos:[], alertas:[] }, providerCatalog:[]
+  };
+
+  function escapeHtml(v){ return String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+  function safeText(v, max=400){ const s = String(v ?? '').replace(/\s+/g,' ').trim(); return s.length > max ? s.slice(0,max) + '…' : s; }
+  function toISODate(s){ const t = String(s||'').trim(); return t.length >= 10 ? t.slice(0,10) : t; }
+  function yearOf(fecha){ return /^\d{4}/.test(fecha||'') ? fecha.slice(0,4) : ''; }
+  function monthKey(fecha){ return /^\d{4}-\d{2}/.test(fecha||'') ? fecha.slice(0,7) : ''; }
+  function monthNum(fecha){ const mk = monthKey(fecha); return mk ? Number(mk.slice(5,7)) : 0; }
+  function money(n){ const x = Number(n)||0; return x.toLocaleString('es-MX',{style:'currency',currency:'MXN'}); }
+  function moneyShort(n){ const x = Number(n)||0; const abs=Math.abs(x); const fmt=v=>v.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); if(abs>=1e9) return '$'+fmt(x/1e9)+'B'; if(abs>=1e6) return '$'+fmt(x/1e6)+'M'; if(abs>=1e3) return '$'+fmt(x/1e3)+'K'; return money(x); }
+  function normalizeRFC(v){ return String(v||'').toUpperCase().replace(/[^A-Z0-9&Ñ]/g,'').trim(); }
+  function normalizeName(v){ return String(v||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim(); }
+  function canonicalProviderName(v){
+    return normalizeName(v)
+      .replace(/\b(SA DE CV|S A DE C V|S DE RL DE CV|S DE R L DE C V|SAPI DE CV|S A P I DE C V|SAS DE CV|SC|SOCIEDAD CIVIL|AC|ASOCIACION CIVIL|SPR DE RL|SPR DE R L|CO DE RL|COMPANIA|COMPANIA DE RL|CIA|DEL|DE|LA|LOS|LAS)\b/g,' ')
+      .replace(/\s+/g,' ')
+      .trim();
+  }
+  function tokenSet(v){ return new Set(canonicalProviderName(v).split(' ').filter(x => x.length > 2)); }
+  function similarityName(a,b){
+    const A = tokenSet(a), B = tokenSet(b);
+    if(!A.size || !B.size) return 0;
+    let inter = 0;
+    for(const t of A) if(B.has(t)) inter++;
+    const union = new Set([...A,...B]).size || 1;
+    return inter / union;
+  }
+  function parseNumber(v){ const s = String(v||'').replace(/[$,\s]/g,'').trim(); const n = Number(s); return Number.isFinite(n) ? n : 0; }
+  function sum(arr, fn){ let t=0; for(const x of arr) t += Number(fn(x)||0); return Math.round(t*100)/100; }
+  function uniq(arr){ return [...new Set(arr)]; }
+
+  function getAttr(el, name){ if(!el) return ''; return (el.getAttribute(name) || el.getAttribute(name.toLowerCase()) || '').trim(); }
+  function findFirstByLocalName(doc, ln){ const all = doc.getElementsByTagName('*'); for(const el of all){ if(el.localName === ln) return el; } return null; }
+  function findAllByLocalNameScoped(root, ln){ const out=[]; const all=root.getElementsByTagName('*'); for(const el of all){ if(el.localName===ln) out.push(el); } return out; }
+  function parseXML(text){ const doc = new DOMParser().parseFromString(text,'application/xml'); if(doc.querySelector('parsererror')) throw new Error('XML inválido'); return doc; }
+
+  function extractCfdi(doc){
+    const comp = doc.documentElement;
+    const emisor = findFirstByLocalName(doc,'Emisor');
+    const receptor = findFirstByLocalName(doc,'Receptor');
+    const timbre = findFirstByLocalName(doc,'TimbreFiscalDigital');
+    const conceptos = findAllByLocalNameScoped(comp,'Concepto').map(c => ({
+      descripcion: safeText(getAttr(c,'Descripcion'), 180),
+      claveProdServ: getAttr(c,'ClaveProdServ'),
+      claveUnidad: getAttr(c,'ClaveUnidad'),
+      cantidad: parseNumber(getAttr(c,'Cantidad') || '0'),
+      valorUnitario: parseNumber(getAttr(c,'ValorUnitario') || '0'),
+      importe: parseNumber(getAttr(c,'Importe') || '0')
+    }));
+    const uuid = getAttr(timbre,'UUID').toUpperCase();
+    if(!uuid) throw new Error('Sin UUID');
+    return {
+      uuid,
+      version:getAttr(comp,'Version'), tipo:getAttr(comp,'TipoDeComprobante'), fecha:toISODate(getAttr(comp,'Fecha')),
+      total:parseNumber(getAttr(comp,'Total')), subtotal:parseNumber(getAttr(comp,'SubTotal')), moneda:getAttr(comp,'Moneda'),
+      metodo:getAttr(comp,'MetodoPago'), forma:getAttr(comp,'FormaPago'), serie:getAttr(comp,'Serie'), folio:getAttr(comp,'Folio'),
+      rfcEmisor:normalizeRFC(getAttr(emisor,'Rfc')), nomEmisor:safeText(getAttr(emisor,'Nombre'),180), regEmisor:getAttr(emisor,'RegimenFiscal'),
+      rfcReceptor:normalizeRFC(getAttr(receptor,'Rfc')), nomReceptor:safeText(getAttr(receptor,'Nombre'),180), regReceptor:getAttr(receptor,'RegimenFiscalReceptor'), uso:getAttr(receptor,'UsoCFDI'),
+      conceptos,
+      direccion:'desconocido', clasificacionAuto:'NO_CLASIFICADO', clasificacionFinal:'NO_CLASIFICADO', impactNet:0, estatusPago:'NO_APLICA', saldo:0,
+      alertas:[], relacionados:[], _srcName:''
+    };
+  }
+
+  function saveCache(){
+    try{
+      localStorage.setItem(LS_KEY, JSON.stringify({ cfg:{...state.cfg, usos:[...state.cfg.usosPermitidos]}, cfdi:[...state.cfdiByUUID.values()], relaciones:state.relaciones, pagosDocto:state.pagosDocto, manual:[...state.manualByKey.entries()] }));
+    }catch(_){ }
+  }
+  function loadCache(){
+    try{
+      const raw = localStorage.getItem(LS_KEY); if(!raw) return; const p = JSON.parse(raw);
+      if(p.cfg){ state.cfg.rfc = normalizeRFC(p.cfg.rfc); state.cfg.year = p.cfg.year || ''; state.cfg.rfcMode = p.cfg.rfcMode || 'manual'; state.cfg.usosPermitidos = new Set((p.cfg.usos || DEFAULT_USOS).map(x => String(x).toUpperCase())); }
+      for(const c of (p.cfdi || [])){ if(c?.uuid) state.cfdiByUUID.set(c.uuid, c); }
+      state.relaciones = Array.isArray(p.relaciones) ? p.relaciones : []; state.pagosDocto = Array.isArray(p.pagosDocto) ? p.pagosDocto : [];
+      if(Array.isArray(p.manual)) state.manualByKey = new Map(p.manual);
+    }catch(_){ }
+  }
+
+  function resolveDireccion(c){
+    const rfc = normalizeRFC(state.cfg.rfc);
+    if(!rfc) return 'desconocido';
+    if(c.rfcReceptor === rfc) return 'recibido';
+    if(c.rfcEmisor === rfc) return 'emitido';
+    return 'desconocido';
+  }
+
+  function containsKeywords(texts, keywords){
+    const hay = normalizeName((texts || []).join(' '));
+    return keywords.some(k => hay.includes(normalizeName(k)));
+  }
+  function providerKey(rfc, nombre){ return normalizeRFC(rfc) ? 'RFC:' + normalizeRFC(rfc) : 'NOM:' + canonicalProviderName(nombre); }
+  function registerProviderAlias(key, rfc, nombre){
+    if(!state.providerAliases.has(key)) state.providerAliases.set(key, { rfc: normalizeRFC(rfc), names:new Map(), preferredName:nombre||'—' });
+    const item = state.providerAliases.get(key);
+    const clean = safeText(nombre || '—', 140) || '—';
+    item.names.set(clean, (item.names.get(clean)||0) + 1);
+    if(!item.preferredName || (item.names.get(clean) >= (item.names.get(item.preferredName)||0)) || clean.length > item.preferredName.length) item.preferredName = clean;
+  }
+  function bestAliasName(key, fallback){
+    const item = state.providerAliases.get(key);
+    return item?.preferredName || fallback || '—';
+  }
+  function resolveManualAmount(providerRFC, providerName){
+    const rfc = normalizeRFC(providerRFC);
+    if(rfc && state.manualByKey.has('RFC:' + rfc)) return Number(state.manualByKey.get('RFC:' + rfc)) || 0;
+    const exactCanonical = canonicalProviderName(providerName);
+    if(exactCanonical && state.manualByKey.has('NOMCAN:' + exactCanonical)) return Number(state.manualByKey.get('NOMCAN:' + exactCanonical)) || 0;
+    const exactNorm = normalizeName(providerName);
+    if(exactNorm && state.manualByKey.has('NOM:' + exactNorm)) return Number(state.manualByKey.get('NOM:' + exactNorm)) || 0;
+    let bestScore = 0, bestValue = 0;
+    for(const [key,val] of state.manualByKey.entries()){
+      if(!key.startsWith('NOMCAN:')) continue;
+      const score = similarityName(exactCanonical, key.slice(7));
+      if(score > bestScore){ bestScore = score; bestValue = Number(val)||0; }
+    }
+    return bestScore >= 0.72 ? bestValue : 0;
+  }
+
+  function buildRelationIndexes(){
+    const relOut = new Map(), relIn = new Map();
+    for(const rel of state.relaciones){
+      if(!relOut.has(rel.origen)) relOut.set(rel.origen, []); relOut.get(rel.origen).push(rel);
+      if(!relIn.has(rel.relacionado)) relIn.set(rel.relacionado, []); relIn.get(rel.relacionado).push(rel);
+    }
+    return { relOut, relIn };
+  }
+  function relsByTipo(list, tipo){
+    const wanted = String(tipo || '').toUpperCase();
+    return (list || []).filter(r => String(r.tipo || '').toUpperCase() === wanted);
+  }
+
+  function classifyData(){
+    const { relOut, relIn } = buildRelationIndexes();
+    const received = [...state.cfdiByUUID.values()].filter(c => c.direccion === 'recibido');
+    const pagoByDoc = new Map();
+    for(const p of state.pagosDocto){
+      if(!pagoByDoc.has(p.uuidDoc)) pagoByDoc.set(p.uuidDoc, []);
+      pagoByDoc.get(p.uuidDoc).push(p);
+    }
+
+    const anticipoCandidates = new Set();
+    for(const c of received){
+      const texts = c.conceptos.map(x => x.descripcion);
+      const out07 = relsByTipo(relOut.get(c.uuid) || [], '07');
+      const in07 = relsByTipo(relIn.get(c.uuid) || [], '07');
+      const hasAnticipoText = c.tipo === 'I' && containsKeywords(texts, ['anticipo','pago anticipado','anticipo a cuenta','aplica anticipo','anticipo del bien o servicio']);
+      const linkedBy07 = in07.some(r => {
+        const origen = state.cfdiByUUID.get(r.origen);
+        return origen && origen.direccion === 'recibido' && origen.tipo === 'I';
+      });
+      if(hasAnticipoText || linkedBy07 || out07.length){
+        anticipoCandidates.add(c.uuid);
+      }
+    }
+
+    for(const c of received){
+      const texts = c.conceptos.map(x => x.descripcion);
+      const out = relOut.get(c.uuid) || [];
+      const inn = relIn.get(c.uuid) || [];
+      const out07 = relsByTipo(out, '07');
+      const in07 = relsByTipo(inn, '07');
+      const relatedUUIDs = uniq([...out.map(x=>x.relacionado), ...inn.map(x=>x.origen)]);
+      c.relacionados = relatedUUIDs;
+      c.alertas = [];
+
+      if(c.tipo === 'P'){
+        c.clasificacionAuto = 'COMPLEMENTO_PAGO';
+        c.clasificacionFinal = c.clasificacionAuto;
+        c.impactNet = 0;
+      } else if(c.tipo === 'I'){
+        const appliesToAnticipo = out07.some(r => anticipoCandidates.has(r.relacionado));
+        const linkedNcAplicacion = received.filter(x => x.direccion === 'recibido' && x.tipo === 'E').some(x => relsByTipo(relOut.get(x.uuid) || [], '07').some(r => r.relacionado === c.uuid));
+        const hasAnticipoText = containsKeywords(texts, ['anticipo','pago anticipado','anticipo a cuenta','aplica anticipo','anticipo del bien o servicio']);
+        const receives07FromInvoice = in07.some(r => {
+          const origen = state.cfdiByUUID.get(r.origen);
+          return origen && origen.direccion === 'recibido' && origen.tipo === 'I';
+        });
+
+        if(hasAnticipoText || receives07FromInvoice){
+          c.clasificacionAuto = 'ANTICIPO_RECIBIDO';
+        } else if(appliesToAnticipo){
+          c.clasificacionAuto = 'FACTURA_FINAL_OPERACION';
+        } else {
+          c.clasificacionAuto = 'GASTO_DIRECTO';
+        }
+
+        c.clasificacionFinal = c.clasificacionAuto;
+        c.impactNet = Math.abs(Number(c.total)||0);
+
+        if(c.clasificacionFinal === 'FACTURA_FINAL_OPERACION' && !linkedNcAplicacion){
+          c.alertas.push('Factura final sin nota de crédito de aplicación');
+        }
+      } else if(c.tipo === 'E'){
+        const relatedDocs07 = out07.map(r => state.cfdiByUUID.get(r.relacionado)).filter(Boolean);
+        const pointsToFinal = relatedDocs07.some(d => d.direccion === 'recibido' && d.tipo === 'I' && (
+          relsByTipo(relOut.get(d.uuid) || [], '07').some(r => anticipoCandidates.has(r.relacionado))
+        ));
+        const hasAplicacionText = containsKeywords(texts, ['aplicacion de anticipo','aplicación de anticipo','amortizacion de anticipo','amortización de anticipo','anticipo aplicado']);
+        if(pointsToFinal || hasAplicacionText){
+          c.clasificacionAuto = 'NC_APLICACION_ANTICIPO';
+        } else {
+          c.clasificacionAuto = 'NC_DESCUENTO_DEVOLUCION';
+        }
+        c.clasificacionFinal = c.clasificacionAuto;
+        c.impactNet = -Math.abs(Number(c.total)||0);
+
+        if(c.clasificacionFinal === 'NC_APLICACION_ANTICIPO' && !pointsToFinal){
+          c.alertas.push('Nota de crédito de aplicación sin factura final relacionada');
+        }
+        if(c.clasificacionFinal === 'NC_DESCUENTO_DEVOLUCION' && relatedDocs07.length === 0){
+          c.alertas.push('CFDI E sin relacionado');
+        }
+      } else {
+        c.clasificacionAuto = 'NO_CLASIFICADO';
+        c.clasificacionFinal = c.clasificacionAuto;
+        c.impactNet = 0;
+      }
+
+      if(c.metodo === 'PPD' && c.tipo === 'I'){
+        const pagos = pagoByDoc.get(c.uuid) || [];
+        const pagado = sum(pagos, p => p.impPagado);
+        const relatedNcs = received.filter(x => x.tipo === 'E' && x.clasificacionFinal === 'NC_APLICACION_ANTICIPO' && relsByTipo(relOut.get(x.uuid) || [], '07').some(r => r.relacionado === c.uuid));
+        const ncTotal = sum(relatedNcs, x => x.total);
+        c.saldo = Math.max(0, Math.round((Number(c.total||0) - ncTotal - pagado)*100)/100);
+        c.estatusPago = c.saldo <= 0.01 ? 'PAGADO' : (pagado > 0 ? 'PARCIAL' : 'NO_PAGADO');
+        if(!pagos.length) c.alertas.push('Factura PPD sin complemento');
+      } else if(c.metodo === 'PUE' && (c.tipo === 'I' || c.tipo === 'E')){
+        c.estatusPago = 'PAGADO';
+        c.saldo = 0;
+      }
+
+      if(c.clasificacionFinal === 'ANTICIPO_RECIBIDO'){
+        const finals = received.filter(x => x.clasificacionFinal === 'FACTURA_FINAL_OPERACION' && relsByTipo(relOut.get(x.uuid) || [], '07').some(r => r.relacionado === c.uuid));
+        if(finals.length === 0) c.alertas.push('Anticipo sin factura final');
+      }
+      if(c.tipo === 'E' && c.clasificacionFinal === 'NC_APLICACION_ANTICIPO'){
+        const hasSource = relsByTipo(relOut.get(c.uuid) || [], '07').some(r => {
+          const doc = state.cfdiByUUID.get(r.relacionado);
+          return doc && doc.clasificacionFinal === 'FACTURA_FINAL_OPERACION';
+        });
+        if(!hasSource) c.alertas.push('Nota de crédito de aplicación sin origen válido');
+      }
+    }
+
+    for(const p of state.pagosDocto){
+      const base = state.cfdiByUUID.get(p.uuidDoc);
+      if(!base) p.alerta = 'Pago sin factura base';
+      else if(base.direccion !== 'recibido') p.alerta = 'Pago ligado a emitido';
+      else if((Number(p.impPagado)||0) > (Number(base.total)||0) + 0.01) p.alerta = 'Pago mayor a factura';
+      else p.alerta = '';
+    }
+  }
+
+  function buildViews(){
+    classifyData();
+    const yearFilter = state.cfg.year;
+    const received = [...state.cfdiByUUID.values()].filter(c => c.direccion === 'recibido' && (!yearFilter || yearOf(c.fecha) === yearFilter));
+    const providerMap = new Map();
+    const detailRows = [];
+    const monthlyMap = new Map();
+    const alerts = [];
+    const payments = [];
+    const anticipoRows = [];
+
+    for(const c of received){
+      const pk = providerKey(c.rfcEmisor, c.nomEmisor);
+      if(!providerMap.has(pk)) providerMap.set(pk, { proveedorKey:pk, proveedorRFC:c.rfcEmisor||'', proveedorNombre:c.nomEmisor||'—',
+        facturaIngreso:0, ncDescDev:0, anticipos:0, facturasFinales:0, ncAplicacion:0, complementos:0, netoCFDI:0, totalManual:0, diferencia:0, alertasCount:0, uuidCount:0, ppdPendientes:0 });
+      const p = providerMap.get(pk);
+      p.uuidCount += 1; p.alertasCount += c.alertas.length; if(c.metodo==='PPD' && c.estatusPago !== 'PAGADO') p.ppdPendientes += 1;
+      if(c.clasificacionFinal === 'GASTO_DIRECTO') p.facturaIngreso += c.total;
+      else if(c.clasificacionFinal === 'NC_DESCUENTO_DEVOLUCION') p.ncDescDev += c.total;
+      else if(c.clasificacionFinal === 'ANTICIPO_RECIBIDO') p.anticipos += c.total;
+      else if(c.clasificacionFinal === 'FACTURA_FINAL_OPERACION') p.facturasFinales += c.total;
+      else if(c.clasificacionFinal === 'NC_APLICACION_ANTICIPO') p.ncAplicacion += c.total;
+      else if(c.clasificacionFinal === 'COMPLEMENTO_PAGO') p.complementos += c.total;
+      p.netoCFDI += c.impactNet;
+
+      const mkey = pk + '|' + (monthNum(c.fecha)||0);
+      if(!monthlyMap.has(mkey)) monthlyMap.set(mkey, { proveedorKey:pk, proveedorRFC:c.rfcEmisor||'', proveedorNombre:c.nomEmisor||'—', mes:monthNum(c.fecha)||0, monto:0 });
+      monthlyMap.get(mkey).monto += c.impactNet;
+
+      detailRows.push({
+        uuid:c.uuid, fecha:c.fecha, mes:monthNum(c.fecha)||0, proveedorRFC:c.rfcEmisor||'', proveedorNombre:c.nomEmisor||'—', tipo:c.tipo, serie:c.serie||'', folio:c.folio||'',
+        total:c.total, metodo:c.metodo||'', forma:c.forma||'', uso:c.uso||'', clasificacion:c.clasificacionFinal, impacto:c.impactNet,
+        estatusPago:c.estatusPago||'NO_APLICA', saldo:c.saldo||0, relacionados:(c.relacionados||[]).join(' | '), alertas:(c.alertas||[]).join(' | '), _raw:c
+      });
+
+      for(const a of c.alertas){ alerts.push({ proveedorRFC:c.rfcEmisor||'', proveedorNombre:c.nomEmisor||'—', fecha:c.fecha, uuid:c.uuid, clasificacion:c.clasificacionFinal, alerta:a, total:c.total }); }
+    }
+
+    for(const [pk, p] of providerMap){
+      p.netoCFDI = Math.round(p.netoCFDI*100)/100;
+      const manual = state.manualByKey.get('RFC:' + p.proveedorRFC) ?? state.manualByKey.get('NOM:' + normalizeName(p.proveedorNombre)) ?? 0;
+      p.totalManual = Number(manual)||0; p.diferencia = Math.round((p.netoCFDI - p.totalManual)*100)/100;
+    }
+
+    const monthlyProviders = [];
+    for(const p of providerMap.values()){
+      const row = { proveedorKey:p.proveedorKey, proveedorRFC:p.proveedorRFC, proveedorNombre:p.proveedorNombre, totalCFDI:p.netoCFDI, totalManual:p.totalManual, diferencia:p.diferencia };
+      let sumMonths = 0;
+      for(let i=1;i<=12;i++){
+        const item = monthlyMap.get(p.proveedorKey + '|' + i); const val = item ? Math.round(item.monto*100)/100 : 0; row['m'+i] = val; sumMonths += val;
+      }
+      row.totalCFDI = Math.round(sumMonths*100)/100; monthlyProviders.push(row);
+    }
+
+    const anticipoDocs = received.filter(c => c.clasificacionFinal === 'ANTICIPO_RECIBIDO');
+    const { relOut, relIn } = buildRelationIndexes();
+    for(const ant of anticipoDocs){
+      const finals = received.filter(x =>
+        x.clasificacionFinal === 'FACTURA_FINAL_OPERACION' &&
+        relsByTipo(relOut.get(x.uuid) || [], '07').some(r => r.relacionado === ant.uuid)
+      );
+      const finalIds = new Set(finals.map(x => x.uuid));
+      const ncs = received.filter(x =>
+        x.clasificacionFinal === 'NC_APLICACION_ANTICIPO' &&
+        relsByTipo(relOut.get(x.uuid) || [], '07').some(r => finalIds.has(r.relacionado))
+      );
+
+      const totalFinales = sum(finals, x => x.total);
+      const totalNc = sum(ncs, x => x.total);
+      const diferenciaAplicacion = Math.round((totalNc - (Number(ant.total) || 0)) * 100) / 100;
+
+      let estatus = 'Cadena completa correcta';
+      if(!finals.length) estatus = 'Anticipo sin factura final';
+      else if(!ncs.length) estatus = 'Factura final sin nota de crédito de aplicación';
+      else if(Math.abs(diferenciaAplicacion) > 0.01) estatus = 'Aplicación parcial o excedida';
+
+      anticipoRows.push({
+        proveedorRFC: ant.rfcEmisor || '',
+        proveedorNombre: ant.nomEmisor || '—',
+        uuidAnticipo: ant.uuid,
+        fechaAnticipo: ant.fecha,
+        montoAnticipo: ant.total,
+        facturasRelacionadas: finals.length,
+        montoFinales: totalFinales,
+        ncsRelacionadas: ncs.length,
+        montoNcAplicadas: totalNc,
+        diferenciaAplicacion,
+        estatus,
+        _chain: { anticipo: ant, finales: finals, ncs: ncs }
+      });
+    }
+
+    for(const p of state.pagosDocto){
+      const base = state.cfdiByUUID.get(p.uuidDoc); if(!base || base.direccion !== 'recibido') continue; if(yearFilter && yearOf(base.fecha) !== yearFilter) continue;
+      payments.push({
+        proveedorRFC:base.rfcEmisor||'', proveedorNombre:base.nomEmisor||'—', uuidPago:p.uuidPago, fechaPago:p.fechaPago||'', uuidFactura:p.uuidDoc,
+        parcialidad:p.parcialidad||0, impPagado:p.impPagado||0, saldoAnt:p.saldoAnt||0, saldoInsoluto:p.saldoInsoluto||0, formaPagoP:p.formaPagoP||'', estatus:p.alerta ? 'ALERTA' : (Number(p.saldoInsoluto||0) <= 0.01 ? 'PAGADO' : 'PARCIAL'), observacion:p.alerta||''
+      });
+      if(p.alerta) alerts.push({ proveedorRFC:base.rfcEmisor||'', proveedorNombre:base.nomEmisor||'—', fecha:p.fechaPago||base.fecha, uuid:p.uuidPago, clasificacion:'COMPLEMENTO_PAGO', alerta:p.alerta, total:p.impPagado||0 });
+    }
+
+    state.views.resumen = [...providerMap.values()].sort((a,b)=>a.proveedorNombre.localeCompare(b.proveedorNombre,'es',{sensitivity:'base'}));
+    state.views.mensual = monthlyProviders.sort((a,b)=>a.proveedorNombre.localeCompare(b.proveedorNombre,'es',{sensitivity:'base'}));
+    state.views.detalle = detailRows.sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
+    state.views.anticipos = anticipoRows.sort((a,b)=>(b.fechaAnticipo||'').localeCompare(a.fechaAnticipo||''));
+    state.views.pagos = payments.sort((a,b)=>(b.fechaPago||'').localeCompare(a.fechaPago||''));
+    state.views.alertas = alerts.sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
+    state.providerCatalog = state.views.resumen.map(x => ({ key:x.proveedorKey, label:(x.proveedorRFC ? x.proveedorRFC + ' · ' : '') + x.proveedorNombre }));
+  }
+
+  const columnsByTab = {
+    resumen:[
+      ['proveedorRFC','RFC'], ['proveedorNombre','Proveedor'], ['facturaIngreso','Facturas de ingreso'], ['ncDescDev','NC devolución/descuento'], ['anticipos','Facturas de anticipo'],
+      ['facturasFinales','Facturas finales de operación'], ['ncAplicacion','NC aplicación de anticipo'], ['netoCFDI','Neto CFDI anual'], ['totalManual','Contabilidad manual'], ['diferencia','Diferencia'], ['ppdPendientes','PPD pendientes'], ['alertasCount','Alertas']
+    ],
+    mensual:[['proveedorRFC','RFC'],['proveedorNombre','Proveedor'],...MONTHS.map((m,i)=>['m'+(i+1),m]),['totalCFDI','Total CFDI'],['totalManual','Contabilidad manual'],['diferencia','Diferencia']],
+    detalle:[['fecha','Fecha'],['uuid','UUID'],['proveedorRFC','RFC'],['proveedorNombre','Proveedor'],['tipo','Tipo'],['clasificacion','Clasificación'],['total','Total'],['impacto','Impacto neto'],['metodo','Método'],['estatusPago','Estatus pago'],['saldo','Saldo'],['relacionados','Relacionados'],['alertas','Alertas']],
+    anticipos:[['proveedorRFC','RFC'],['proveedorNombre','Proveedor'],['uuidAnticipo','UUID anticipo'],['fechaAnticipo','Fecha anticipo'],['montoAnticipo','Monto anticipo'],['facturasRelacionadas','Facturas finales relacionadas'],['montoFinales','Total facturas finales'],['ncsRelacionadas','NC de aplicación relacionadas'],['montoNcAplicadas','Total NC de aplicación'],['diferenciaAplicacion','Diferencia de aplicación'],['estatus','Estatus']],
+    pagos:[['proveedorRFC','RFC'],['proveedorNombre','Proveedor'],['uuidPago','UUID pago'],['fechaPago','Fecha pago'],['uuidFactura','UUID factura'],['parcialidad','Parcialidad'],['impPagado','ImpPagado'],['saldoAnt','Saldo anterior'],['saldoInsoluto','Saldo insoluto'],['formaPagoP','Forma de pago'],['estatus','Estatus'],['observacion','Observación']],
+    alertas:[['fecha','Fecha'],['uuid','UUID'],['proveedorRFC','RFC'],['proveedorNombre','Proveedor'],['clasificacion','Clasificación'],['alerta','Alerta'],['total','Monto']]
+  };
+
+  function fmtCell(key, value){
+    if(['facturaIngreso','ncDescDev','anticipos','facturasFinales','ncAplicacion','netoCFDI','totalManual','diferencia','montoAnticipo','montoFinales','montoNcAplicadas','diferenciaAplicacion','impPagado','saldoAnt','saldoInsoluto','total','impacto','saldo', ...Array.from({length:12}, (_,i)=>'m'+(i+1)), 'totalCFDI'].includes(key)){
+      const full = money(Number(value)||0);
+      return '<span class="mono" title="'+escapeHtml(full)+'">'+escapeHtml(full)+'</span>';
+    }
+    if(['facturasRelacionadas','ncsRelacionadas','alertasCount','ppdPendientes','parcialidad'].includes(key)){
+      const cls = Number(value) ? (key === 'alertasCount' ? 'bad' : (key === 'ppdPendientes' ? 'warn' : 'info')) : (key === 'ppdPendientes' ? 'ok' : '');
+      return '<span class="badge '+cls+'">'+escapeHtml(String(value ?? 0))+'</span>';
+    }
+    if(key === 'estatus'){
+      const txt = String(value||'');
+      const cls = /correcta|pagado/i.test(txt) ? 'ok' : (/sin|no|alerta|parcial|excedida/i.test(txt) ? 'bad' : 'warn');
+      return '<span class="badge '+cls+'">'+escapeHtml(txt||'—')+'</span>';
+    }
+    if(key === 'estatusPago') return '<span class="badge '+(/PAGADO/.test(value)?'ok':(/PARCIAL/.test(value)?'warn':'bad'))+'">'+escapeHtml(value||'NO_APLICA')+'</span>';
+    if(key === 'clasificacion') return '<span class="badge info">'+escapeHtml(value||'—')+'</span>';
+    return escapeHtml(value || '—');
+  }
+
+  function getFilteredRows(tab){
+    let rows = state.views[tab] || [];
+    const provider = $('fProviderType').value || '';
+    const mes = Number($('fMes').value || 0);
+    const clas = $('fClas').value || '';
+    const status = $('fStatus').value || '';
+    const q = normalizeName($('fSearch').value || '');
+    rows = rows.filter(r => {
+      if(provider && String(r.proveedorKey || '') !== provider) return false;
+      if(mes){
+        const rowMes = Number(r.mes || monthNum(r.fecha || r.fechaAnticipo || r.fechaPago));
+        if(rowMes !== mes) return false;
+      }
+      if(clas){
+        const cls = String(r.clasificacion || r.clasificacionFinal || '');
+        if(cls !== clas) return false;
+      }
+      if(status){
+        const st = String(r.estatus || r.estatusPago || '');
+        if(st !== status) return false;
+      }
+      if(q){
+        const hay = normalizeName([r.proveedorRFC, r.proveedorNombre, r.uuid, r.uuidAnticipo, r.uuidPago, r.uuidFactura, r.alerta, r.alertas, r.observacion].filter(Boolean).join(' '));
+        if(!hay.includes(q)) return false;
+      }
+      return true;
+    });
+    return rows;
+  }
+
+  function getCurrentRows(){
+    let rows = state.views[uiState.activeTab] || [];
+    const provider = $('fProviderType').value, mes = $('fMes').value, clas = $('fClas').value, status = $('fStatus').value, q = normalizeName($('fSearch').value || '');
+    rows = rows.filter(r => {
+      if(provider && r.proveedorKey !== provider) return false;
+      if(mes){ const m = Number(mes); const rowMes = Number(r.mes || monthNum(r.fecha || r.fechaAnticipo || r.fechaPago)); if(rowMes !== m) return false; }
+      if(clas){ const cls = r.clasificacion || r.clasificacionFinal || ''; if(cls !== clas) return false; }
+      if(status){ const st = r.estatus || r.estatusPago || ''; if(st !== status) return false; }
+      if(q){ const hay = normalizeName([r.uuid, r.uuidAnticipo, r.uuidFinal, r.uuidNc, r.uuidPago, r.uuidFactura, r.proveedorRFC, r.proveedorNombre, r.alerta, r.observacion, r.clasificacion].join(' ')); if(!hay.includes(q)) return false; }
+      return true;
+    });
+    const [sortKey] = [uiState.sortKey]; const mul = uiState.sortDir === 'asc' ? 1 : -1;
+    rows = rows.slice().sort((a,b)=>{
+      const va = a[sortKey], vb = b[sortKey];
+      if(typeof va === 'number' || typeof vb === 'number') return ((Number(va)||0)-(Number(vb)||0))*mul;
+      return String(va||'').localeCompare(String(vb||''), 'es', {numeric:true,sensitivity:'base'})*mul;
+    });
+    return rows;
+  }
+
+  function renderFilters(){
+    const providerSel = $('fProviderType'); const current = providerSel.value;
+    providerSel.innerHTML = '<option value="">Proveedor: todos</option>' + state.providerCatalog.map(p => '<option value="'+escapeHtml(p.key)+'">'+escapeHtml(p.label)+'</option>').join('');
+    if(state.providerCatalog.some(p => p.key === current)) providerSel.value = current;
+
+    const monthsInData = uniq([...state.views.detalle.map(r=>r.mes).filter(Boolean), ...state.views.anticipos.map(r=>monthNum(r.fechaAnticipo)).filter(Boolean), ...state.views.pagos.map(r=>monthNum(r.fechaPago)).filter(Boolean)]).sort((a,b)=>a-b);
+    const fMes = $('fMes'); const curMes = fMes.value;
+    fMes.innerHTML = '<option value="">Mes: todos</option>' + monthsInData.map(m => '<option value="'+m+'">'+MONTHS[m-1]+'</option>').join('');
+    if(monthsInData.includes(Number(curMes))) fMes.value = curMes;
+
+    const classes = uniq(state.views.detalle.map(r=>r.clasificacion).filter(Boolean)).sort();
+    const fClas = $('fClas'); const curClas = fClas.value; fClas.innerHTML = '<option value="">Clasificación: todas</option>' + classes.map(c => '<option value="'+escapeHtml(c)+'">'+escapeHtml(c)+'</option>').join(''); if(classes.includes(curClas)) fClas.value = curClas;
+
+    let statuses = [];
+    if(uiState.activeTab === 'detalle') statuses = uniq(state.views.detalle.map(r=>r.estatusPago).filter(Boolean));
+    else if(uiState.activeTab === 'anticipos') statuses = uniq(state.views.anticipos.map(r=>r.estatus).filter(Boolean));
+    else if(uiState.activeTab === 'pagos') statuses = uniq(state.views.pagos.map(r=>r.estatus).filter(Boolean));
+    const fStatus = $('fStatus'); const curStatus = fStatus.value; fStatus.innerHTML = '<option value="">Estatus: todos</option>' + statuses.map(s => '<option value="'+escapeHtml(s)+'">'+escapeHtml(s)+'</option>').join(''); if(statuses.includes(curStatus)) fStatus.value = curStatus;
+  }
+
+  function renderTable(){
+    renderFilters();
+    const cols = columnsByTab[uiState.activeTab];
+    $('thead').innerHTML = cols.map(([k,label]) => '<th data-key="'+escapeHtml(k)+'">'+escapeHtml(label)+(uiState.sortKey===k ? ' ' + (uiState.sortDir==='asc'?'▲':'▼') : '')+'</th>').join('');
+    document.querySelectorAll('#thead th').forEach(th => th.addEventListener('click', ()=>{
+      const k = th.dataset.key;
+      if(uiState.sortKey === k) uiState.sortDir = uiState.sortDir === 'asc' ? 'desc' : 'asc';
+      else {
+        uiState.sortKey = k;
+        uiState.sortDir = ['fecha','fechaAnticipo','fechaPago','total','montoAnticipo','montoFinales','montoNcAplicadas','diferencia','netoCFDI','totalCFDI','totalManual','facturasRelacionadas','ncsRelacionadas','diferenciaAplicacion'].includes(k) ? 'desc' : 'asc';
+      }
+      uiState.page = 1;
+      renderTable();
+    }));
+
+    const rows = getCurrentRows(); const totalRows = rows.length; const totalPages = Math.max(1, Math.ceil(totalRows / uiState.pageSize)); uiState.page = Math.min(uiState.page, totalPages);
+    const start = (uiState.page - 1) * uiState.pageSize; const pageRows = rows.slice(start, start + uiState.pageSize);
+    $('pageInfo').textContent = uiState.page + '/' + totalPages;
+    $('tbody').innerHTML = pageRows.map(r => {
+      const drawerType = uiState.activeTab === 'anticipos' ? 'anticipo' : (uiState.activeTab === 'detalle' ? 'detalle' : '');
+      const drawerId = uiState.activeTab === 'anticipos' ? (r.uuidAnticipo || '') : (r.uuid || '');
+      return '<tr data-drawer="'+escapeHtml(drawerType)+'" data-id="'+escapeHtml(drawerId)+'">' + cols.map(([k]) => '<td>'+fmtCell(k, r[k])+'</td>').join('') + '</tr>';
+    }).join('') || '<tr><td colspan="'+cols.length+'" class="muted">No existen registros para los filtros seleccionados.</td></tr>';
+    document.querySelectorAll('#tbody tr[data-drawer="detalle"]').forEach(tr => tr.addEventListener('click', ()=>openDrawerDetail(tr.dataset.id)));
+    document.querySelectorAll('#tbody tr[data-drawer="anticipo"]').forEach(tr => tr.addEventListener('click', ()=>openDrawerAnticipo(tr.dataset.id)));
+    $('footLeft').textContent = 'Registros mostrados: ' + pageRows.length + ' de ' + totalRows + ' · Ejercicio: ' + (state.cfg.year || 'Todos') + ' · RFC empresa: ' + (state.cfg.rfc || '—');
+  }
+
+  function renderStats(){
+    const prov = state.views.resumen.length; const rec = state.views.detalle.length; const neto = sum(state.views.resumen, r => r.netoCFDI); const antOpen = state.views.anticipos.filter(x => x.estatus !== 'Cadena completa correcta').length; const alerts = state.views.alertas.length;
+    $('sProv').textContent = prov; $('sProv2').textContent = prov ? 'Proveedores con acumulado anual disponible' : 'Sin información cargada';
+    $('sRec').textContent = rec; $('sRec2').textContent = 'Comprobantes recibidos considerados en el análisis';
+    $('sNeto').textContent = moneyShort(neto); $('sNeto').title = money(neto); $('sNeto2').textContent = 'Monto neto conciliable del ejercicio';
+    $('sAnt').textContent = antOpen; $('sAnt2').textContent = antOpen ? 'Existen cadenas de anticipos pendientes de revisión' : 'Sin cadenas pendientes';
+    $('sAlerts').textContent = alerts; $('sAlerts2').textContent = alerts ? 'Se detectaron incidencias que requieren validación' : 'Sin incidencias detectadas';
+  }
+
+  function renderYearOptions(){
+    const years = uniq([...state.cfdiByUUID.values()].map(c => yearOf(c.fecha)).filter(Boolean)).sort().reverse();
+    const sel = $('cfgYear'); const cur = sel.value; sel.innerHTML = '<option value="">Todos</option>' + years.map(y => '<option value="'+y+'">'+y+'</option>').join(''); if(years.includes(cur)) sel.value = cur;
+  }
+
+  function recompute(){ buildViews(); renderYearOptions(); renderStats(); renderTable(); saveCache(); }
+
+  function setImportCounters(){ $('cIns').textContent = state.import.ins; $('cDup').textContent = state.import.dup; $('cErr').textContent = state.import.err; }
+  function setProgress(cur, total){ $('progCounts').textContent = cur + '/' + total; $('progBar').style.width = (total ? Math.round(cur*100/total) : 0) + '%'; }
+
+  async function importFiles(files){
+    const list = Array.from(files || []).filter(f => /\.xml$/i.test(f.name || ''));
+    state.import = { found:list.length, processed:0, ins:0, dup:0, err:0 }; $('progLabel').textContent = 'Procesando ' + list.length + ' archivos XML…'; setProgress(0,list.length); setImportCounters();
+    for(let i=0;i<list.length;i++){
+      const f = list[i];
+      try{
+        const doc = parseXML(await f.text()); const c = extractCfdi(doc); c._srcName = f.webkitRelativePath || f.name || ''; c.direccion = resolveDireccion(c);
+        const relNodes = findAllByLocalNameScoped(doc.documentElement,'CfdiRelacionados'); const rels = [];
+        for(const rel of relNodes){
+          const tipoRel = getAttr(rel,'TipoRelacion');
+          for(const r of findAllByLocalNameScoped(rel,'CfdiRelacionado')){ const u = getAttr(r,'UUID').toUpperCase(); if(u) rels.push({ origen:c.uuid, tipo:tipoRel, relacionado:u }); }
+        }
+        if(rels.length) state.relaciones.push(...rels);
+        if(c.tipo === 'P'){
+          for(const d of findAllByLocalNameScoped(doc.documentElement,'DoctoRelacionado')){
+            const uuidDoc = getAttr(d,'IdDocumento').toUpperCase(); if(!uuidDoc) continue; let formaPagoP='', fechaPago='';
+            let node = d.parentNode; while(node && node.nodeType===1){ if(node.localName==='Pago'){ formaPagoP = getAttr(node,'FormaDePagoP'); fechaPago = toISODate(getAttr(node,'FechaPago')); break; } node = node.parentNode; }
+            state.pagosDocto.push({ uuidPago:c.uuid, uuidDoc, impPagado:parseNumber(getAttr(d,'ImpPagado')), saldoAnt:parseNumber(getAttr(d,'ImpSaldoAnt')), saldoInsoluto:parseNumber(getAttr(d,'ImpSaldoInsoluto')), parcialidad:Number(getAttr(d,'NumParcialidad')||0), fechaPago, formaPagoP });
+          }
+        }
+        if(state.cfdiByUUID.has(c.uuid)) state.import.dup++; else { state.cfdiByUUID.set(c.uuid, c); state.import.ins++; }
+      } catch(_e){ state.import.err++; }
+      state.import.processed++; setProgress(state.import.processed, state.import.found); setImportCounters(); if(i % 40 === 0) await new Promise(r=>setTimeout(r,0));
+    }
+    recompute(); $('progLabel').textContent = 'Proceso finalizado: ' + state.import.ins + ' archivos incorporados, ' + state.import.dup + ' duplicados y ' + state.import.err + ' con error.';
+  }
+
+  function suggestRFC(){ const counts = new Map(); for(const c of state.cfdiByUUID.values()){ const r = normalizeRFC(c.rfcReceptor); if(r) counts.set(r, (counts.get(r)||0)+1); } return [...counts.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0] || ''; }
+
+  function parseManualInput(){
+    state.manualByKey = new Map();
+    const lines = $('manualInput').value.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+    for(const line of lines){
+      const parts = line.includes('\t') ? line.split('\t').map(x => x.trim()) : line.split(/[|,;]/).map(x => x.trim());
+      if(parts.length < 2) continue;
+      if(/^(RFC|NOMBRE|PROVEEDOR|MONTO)$/i.test(parts[0])) continue;
+      if(parts.length >= 3){
+        const rfc = normalizeRFC(parts[0]);
+        const nombre = parts[1];
+        const monto = parseNumber(parts[2]);
+        if(rfc) state.manualByKey.set('RFC:' + rfc, monto);
+        if(nombre){
+          state.manualByKey.set('NOM:' + normalizeName(nombre), monto);
+          state.manualByKey.set('NOMCAN:' + canonicalProviderName(nombre), monto);
+        }
+      } else {
+        const nombre = parts[0];
+        const monto = parseNumber(parts[1]);
+        state.manualByKey.set('NOM:' + normalizeName(nombre), monto);
+        state.manualByKey.set('NOMCAN:' + canonicalProviderName(nombre), monto);
+      }
+    }
+    recompute();
+  }
+
+  function downloadCSV(rows, filename){ const esc=v=>{ const s=String(v ?? ''); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; }; const csv = rows.map(r => r.map(esc).join(',')).join('\n'); const blob = new Blob([csv], { type:'text/csv;charset=utf-8' }); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
+
+  function exportCurrentCSV(){ const cols = columnsByTab[uiState.activeTab]; const rows = getFilteredRows(uiState.activeTab); const data = [cols.map(x=>x[1]), ...rows.map(r => cols.map(([k]) => r[k] ?? ''))]; downloadCSV(data, 'conciliador_' + uiState.activeTab + '.csv'); }
+
+  function xmlCell(value){ const type = typeof value === 'number' ? 'Number' : 'String'; const safe = String(value ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); return '<Cell><Data ss:Type="'+type+'">'+safe+'</Data></Cell>'; }
+  function buildWorkbookXML(){
+    const sheetDefs = [
+      ['01_Resumen_Anual', columnsByTab.resumen, state.views.resumen], ['02_Resumen_Mensual', columnsByTab.mensual, state.views.mensual], ['03_Detalle_CFDI', columnsByTab.detalle, state.views.detalle], ['04_Anticipos', columnsByTab.anticipos, state.views.anticipos], ['05_Complementos_Pago', columnsByTab.pagos, state.views.pagos], ['06_Alertas', columnsByTab.alertas, state.views.alertas]
+    ];
+    const worksheets = sheetDefs.map(([name, cols, rows]) => '<Worksheet ss:Name="'+name+'"><Table>' + '<Row>' + cols.map(c => xmlCell(c[1])).join('') + '</Row>' + rows.map(r => '<Row>' + cols.map(([k]) => xmlCell(r[k] ?? '')).join('') + '</Row>').join('') + '</Table></Worksheet>').join('');
+    return '<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>' +
+      '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:html="http://www.w3.org/TR/REC-html40">' + worksheets + '</Workbook>';
+  }
+  function escapeXml(v){ return String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&apos;'); }
+  function colLetter(n){ let s=''; while(n>0){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26); } return s; }
+  function utf8Bytes(str){ return new TextEncoder().encode(str); }
+  function crc32(bytes){ let c=-1; for(let i=0;i<bytes.length;i++){ c ^= bytes[i]; for(let k=0;k<8;k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); } return (c ^ -1) >>> 0; }
+  function u16(n){ return [n & 255, (n >>> 8) & 255]; }
+  function u32(n){ return [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255]; }
+  function zipStore(files){
+    const local = []; const central = []; let offset = 0;
+    for(const file of files){
+      const nameBytes = utf8Bytes(file.name); const dataBytes = utf8Bytes(file.content); const crc = crc32(dataBytes);
+      const localHeader = new Uint8Array([...u32(0x04034b50), ...u16(20), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(crc), ...u32(dataBytes.length), ...u32(dataBytes.length), ...u16(nameBytes.length), ...u16(0), ...nameBytes, ...dataBytes]);
+      local.push(localHeader);
+      const centralHeader = new Uint8Array([...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(crc), ...u32(dataBytes.length), ...u32(dataBytes.length), ...u16(nameBytes.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(offset), ...nameBytes]);
+      central.push(centralHeader); offset += localHeader.length;
+    }
+    const centralStart = offset; const centralSize = central.reduce((a,b)=>a+b.length,0); const end = new Uint8Array([...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(files.length), ...u16(files.length), ...u32(centralSize), ...u32(centralStart), ...u16(0)]);
+    return new Blob([...local, ...central, end], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  }
+  function sheetXml(cols, rows){
+    const ref = 'A1:' + colLetter(cols.length) + Math.max(1, rows.length + 1);
+    let xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+    xml += '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="' + ref + '"/><sheetViews><sheetView workbookViewId="0"/></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols>' + cols.map((c,i) => '<col min="'+(i+1)+'" max="'+(i+1)+'" width="22" customWidth="1"/>').join('') + '</cols><sheetData>';
+    const renderRow = (cells, rowNumber) => '<row r="'+rowNumber+'">' + cells.map((value, idx) => { const cellRef = colLetter(idx+1) + rowNumber; if(typeof value === 'number' && Number.isFinite(value)) return '<c r="'+cellRef+'"><v>'+value+'</v></c>'; return '<c r="'+cellRef+'" t="inlineStr"><is><t xml:space="preserve">'+escapeXml(value == null ? '' : String(value))+'</t></is></c>'; }).join('') + '</row>';
+    xml += renderRow(cols.map(c => c[1]), 1);
+    rows.forEach((r, i) => { const line = cols.map(([k]) => { const val = r[k]; return typeof val === 'number' && Number.isFinite(val) ? val : (val ?? ''); }); xml += renderRow(line, i + 2); });
+    xml += '</sheetData></worksheet>';
+    return xml;
+  }
+  function buildXlsxBlob(){
+    const sheetDefs = [['01_Resumen_Anual', columnsByTab.resumen, state.views.resumen], ['02_Resumen_Mensual', columnsByTab.mensual, state.views.mensual], ['03_Detalle_CFDI', columnsByTab.detalle, state.views.detalle], ['04_Anticipos', columnsByTab.anticipos, state.views.anticipos], ['05_Complementos_Pago', columnsByTab.pagos, state.views.pagos], ['06_Alertas', columnsByTab.alertas, state.views.alertas]];
+    const files = [];
+    files.push({ name:'[Content_Types].xml', content:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>' + sheetDefs.map((_,i)=>'<Override PartName="/xl/worksheets/sheet'+(i+1)+'.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>').join('') + '</Types>' });
+    files.push({ name:'_rels/.rels', content:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>' });
+    files.push({ name:'docProps/core.xml', content:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:creator>OpenAI</dc:creator><cp:lastModifiedBy>OpenAI</cp:lastModifiedBy><dcterms:created xsi:type="dcterms:W3CDTF">'+new Date().toISOString()+'</dcterms:created></cp:coreProperties>' });
+    files.push({ name:'docProps/app.xml', content:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>Microsoft Excel</Application><HeadingPairs><vt:vector size="2" baseType="variant"><vt:variant><vt:lpstr>Worksheets</vt:lpstr></vt:variant><vt:variant><vt:i4>'+sheetDefs.length+'</vt:i4></vt:variant></vt:vector></HeadingPairs><TitlesOfParts><vt:vector size="'+sheetDefs.length+'" baseType="lpstr">'+sheetDefs.map(s=>'<vt:lpstr>'+escapeXml(s[0])+'</vt:lpstr>').join('')+'</vt:vector></TitlesOfParts></Properties>' });
+    files.push({ name:'xl/workbook.xml', content:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>'+sheetDefs.map((s,i)=>'<sheet name="'+escapeXml(s[0])+'" sheetId="'+(i+1)+'" r:id="rId'+(i+1)+'"/>').join('')+'</sheets></workbook>' });
+    files.push({ name:'xl/_rels/workbook.xml.rels', content:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+sheetDefs.map((_,i)=>'<Relationship Id="rId'+(i+1)+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet'+(i+1)+'.xml"/>').join('')+'<Relationship Id="rId'+(sheetDefs.length+1)+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' });
+    files.push({ name:'xl/styles.xml', content:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>' });
+    sheetDefs.forEach((sheet, i) => files.push({ name:'xl/worksheets/sheet'+(i+1)+'.xml', content:sheetXml(sheet[1], sheet[2]) }));
+    return zipStore(files);
+  }
+  function exportWorkbook(){ const blob = buildXlsxBlob(); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='conciliador_proveedores_v4.xlsx'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
+
+  function renderDrawerSections(left, right, third){
+    $('kvLeft').innerHTML = left.map(([k,v]) => '<div class="line"><div class="k">'+escapeHtml(k)+'</div><div class="v">'+escapeHtml(v || '—')+'</div></div>').join('');
+    $('kvRight').innerHTML = right.map(([k,v]) => '<div class="line"><div class="k">'+escapeHtml(k)+'</div><div class="v">'+escapeHtml(v || '—')+'</div></div>').join('');
+    $('kvThird').innerHTML = third.map(([k,v]) => '<div class="line"><div class="k">'+escapeHtml(k)+'</div><div class="v">'+escapeHtml(v || '—')+'</div></div>').join('');
+    $('drawer').classList.add('show');
+  }
+  function openDrawerDetail(uuid){
+    uiState.lastOpenedUUID = uuid;
+    const c = state.cfdiByUUID.get(uuid);
+    if(!c) return;
+    $('dUUID').textContent = c.uuid;
+    $('dClass').textContent = c.clasificacionFinal || '—';
+    $('dStatus').textContent = c.estatusPago || 'NO_APLICA';
+    const left = [['Fecha', c.fecha], ['Tipo', c.tipo], ['Serie/Folio', (c.serie||'') + ' ' + (c.folio||'')], ['Total', money(c.total)], ['Método', c.metodo||'—'], ['Forma', c.forma||'—'], ['Uso CFDI', c.uso||'—'], ['Moneda', c.moneda||'—']];
+    const right = [['RFC Emisor', c.rfcEmisor], ['Proveedor', bestAliasName(c.proveedorKey || providerKey(c.rfcEmisor, c.nomEmisor), c.nomEmisor)], ['RFC Receptor', c.rfcReceptor], ['Receptor', c.nomReceptor], ['Clasificación', c.clasificacionFinal], ['Impacto neto', money(c.impactNet||0)], ['Saldo', money(c.saldo||0)], ['Archivo', c._srcName || '—']];
+    const third = [['Relacionados', (c.relacionados||[]).join(' | ') || '—'], ['Conceptos', c.conceptos.map(x => x.descripcion).join(' · ') || '—'], ['Alertas', (c.alertas||[]).join(' | ') || '—']];
+    renderDrawerSections(left, right, third);
+  }
+  function openDrawerAnticipo(uuidAnticipo){
+    const row = state.views.anticipos.find(x => x.uuidAnticipo === uuidAnticipo);
+    if(!row) return;
+    $('dUUID').textContent = row.uuidAnticipo;
+    $('dClass').textContent = 'CADENA DE ANTICIPO';
+    $('dStatus').textContent = row.estatus || '—';
+    const left = [['Proveedor', row.proveedorNombre], ['RFC', row.proveedorRFC || '—'], ['Fecha anticipo', row.fechaAnticipo], ['Monto anticipo', money(row.montoAnticipo)], ['Facturas finales relacionadas', String(row.facturasRelacionadas || 0)], ['Total facturas finales', money(row.montoFinales || 0)]];
+    const right = [['NC de aplicación relacionadas', String(row.ncsRelacionadas || 0)], ['Total NC de aplicación', money(row.montoNcAplicadas || 0)], ['Diferencia de aplicación', money(row.diferenciaAplicacion || 0)], ['Estatus', row.estatus || '—']];
+    const finales = row._chain?.finales || [];
+    const ncs = row._chain?.ncs || [];
+    const third = [['UUID factura final', finales.length ? finales.map(x => x.uuid + ' · ' + money(x.total)).join(' | ') : '—'], ['UUID NC de aplicación', ncs.length ? ncs.map(x => x.uuid + ' · ' + money(x.total)).join(' | ') : '—'], ['Observación', Math.abs(Number(row.diferenciaAplicacion)||0) <= 0.01 ? 'La aplicación del anticipo coincide con el monto del anticipo.' : 'La aplicación no cubre exactamente el monto del anticipo; revise las facturas finales y las notas de crédito relacionadas.']];
+    renderDrawerSections(left, right, third);
+  }
+  function closeDrawer(){ $('drawer').classList.remove('show'); }
+
+  function resetAll(){ localStorage.removeItem(LS_KEY); state.cfdiByUUID.clear(); state.relaciones=[]; state.pagosDocto=[]; state.manualByKey=new Map(); state.providerAliases=new Map(); $('manualInput').value=''; state.import={found:0,processed:0,ins:0,dup:0,err:0}; $('progLabel').textContent='Listo.'; setProgress(0,0); setImportCounters(); recompute(); }
+
+  function bind(){
+    $('cfgUsos').value = [...state.cfg.usosPermitidos].join(','); $('cfgRFC').value = state.cfg.rfc || ''; $('cfgRFCMode').value = state.cfg.rfcMode || 'manual'; $('cfgYear').value = state.cfg.year || '';
+    document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', ()=>{ uiState.activeTab = t.dataset.tab; document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active', x===t)); uiState.page=1; uiState.sortKey = columnsByTab[uiState.activeTab][0][0]; uiState.sortDir='asc'; renderTable(); }));
+    ['fProviderType','fMes','fClas','fStatus','fSearch'].forEach(id => { $(id).addEventListener('input', ()=>{ uiState.page=1; renderTable(); }); $(id).addEventListener('change', ()=>{ uiState.page=1; renderTable(); }); });
+    $('pageSize').addEventListener('change', e => { uiState.pageSize = Number(e.target.value)||100; uiState.page=1; renderTable(); }); $('prevPage').addEventListener('click', ()=>{ uiState.page = Math.max(1, uiState.page - 1); renderTable(); }); $('nextPage').addEventListener('click', ()=>{ const maxPage = Math.max(1, Math.ceil(getFilteredRows(uiState.activeTab).length / uiState.pageSize)); uiState.page = Math.min(maxPage, uiState.page + 1); renderTable(); });
+    $('btnPickFiles').addEventListener('click', ()=>$('fileInput').click()); $('btnPickFolder').addEventListener('click', ()=>$('folderInput').click()); $('fileInput').addEventListener('change', e => { if(e.target.files?.length) importFiles(e.target.files); e.target.value=''; }); $('folderInput').addEventListener('change', e => { if(e.target.files?.length) importFiles(e.target.files); e.target.value=''; });
+    $('cfgRFC').addEventListener('input', e => { state.cfg.rfc = normalizeRFC(e.target.value); for(const c of state.cfdiByUUID.values()) c.direccion = resolveDireccion(c); recompute(); }); $('cfgRFCMode').addEventListener('change', e => { state.cfg.rfcMode = e.target.value || 'manual'; saveCache(); }); $('cfgUsos').addEventListener('input', e => { const vals = e.target.value.split(',').map(x=>x.trim().toUpperCase()).filter(Boolean); state.cfg.usosPermitidos = new Set(vals.length ? vals : DEFAULT_USOS); saveCache(); }); $('cfgYear').addEventListener('change', e => { state.cfg.year = e.target.value || ''; recompute(); });
+    $('btnSuggest').addEventListener('click', ()=>{ const s=suggestRFC(); if(s){ state.cfg.rfc = s; $('cfgRFC').value = s; for(const c of state.cfdiByUUID.values()) c.direccion = resolveDireccion(c); recompute(); } });
+    $('btnApplyManual').addEventListener('click', parseManualInput); $('btnSampleManual').addEventListener('click', ()=>{ $('manualInput').value = 'RFC,NOMBRE,MONTO\nAAA010101AAA,PROVEEDOR INDUSTRIAL DEL SURESTE SA DE CV,125000.50\nPROVEEDOR INDUSTRIAL DEL SURESTE,125000.50\nCOMERCIALIZADORA MAYAB,88990.12'; }); $('btnReset').addEventListener('click', resetAll);
+    $('btnExportView').addEventListener('click', exportCurrentCSV); $('btnExportBook').addEventListener('click', exportWorkbook);
+    const dz = $('dropZone'); ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.style.borderColor='rgba(47,230,255,.55)'; dz.style.background='rgba(47,230,255,.06)'; })); ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.style.borderColor='rgba(255,255,255,.22)'; dz.style.background='rgba(255,255,255,.02)'; })); dz.addEventListener('drop', e => { const files=e.dataTransfer?.files; if(files?.length) importFiles(files); });
+    $('btnCloseDrawer').addEventListener('click', closeDrawer); $('drawer').addEventListener('click', e => { if(e.target.id === 'drawer') closeDrawer(); }); $('btnCopyUUID').addEventListener('click', async ()=>{ try{ await navigator.clipboard.writeText($('dUUID').textContent || ''); }catch(_){ } });
+  }
+
+  loadCache();
+  for(const c of state.cfdiByUUID.values()) c.direccion = resolveDireccion(c);
+  bind(); recompute();
+})();
+</script>
+</body>
+</html>
